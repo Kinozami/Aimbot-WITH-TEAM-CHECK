@@ -1,0 +1,127 @@
+-- Services
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+-- Variables
+local localPlayer = Players.LocalPlayer
+local camera = game.Workspace.CurrentCamera
+local lockView = false
+local targetPlayer = nil
+local hotkey = Enum.KeyCode.L -- Default hotkey
+
+-- Create ScreenGui
+local screenGui = Instance.new("ScreenGui", localPlayer:WaitForChild("PlayerGui"))
+screenGui.Name = "DestructiveAimbotGui"
+
+-- Create TextLabel for Aimbot status
+local textLabel = Instance.new("TextLabel", screenGui)
+textLabel.Size = UDim2.new(0, 200, 0, 50)
+textLabel.Position = UDim2.new(0.5, -100, 0, 0)
+textLabel.Text = "Destructive Aimbot"
+textLabel.TextColor3 = Color3.new(1, 0, 0)
+textLabel.BackgroundTransparency = 1
+textLabel.Font = Enum.Font.SourceSansBold
+textLabel.TextSize = 24
+
+-- Create TextLabel for Hotkey status
+local hotkeyLabel = Instance.new("TextLabel", screenGui)
+hotkeyLabel.Size = UDim2.new(0, 200, 0, 50)
+hotkeyLabel.Position = UDim2.new(0.5, -100, 0, 60)
+hotkeyLabel.Text = "Hotkey: L"
+hotkeyLabel.TextColor3 = Color3.new(1, 1, 1)
+hotkeyLabel.BackgroundTransparency = 1
+hotkeyLabel.Font = Enum.Font.SourceSans
+hotkeyLabel.TextSize = 18
+
+-- Create TextBox for changing the hotkey
+local hotkeyBox = Instance.new("TextBox", screenGui)
+hotkeyBox.Size = UDim2.new(0, 200, 0, 50)
+hotkeyBox.Position = UDim2.new(0.5, -100, 0, 120)
+hotkeyBox.PlaceholderText = "Enter new hotkey..."
+hotkeyBox.Text = ""
+hotkeyBox.TextColor3 = Color3.new(1, 1, 1)
+hotkeyBox.BackgroundTransparency = 0.5
+hotkeyBox.BackgroundColor3 = Color3.new(0, 0, 0)
+hotkeyBox.Font = Enum.Font.SourceSans
+hotkeyBox.TextSize = 18
+
+-- Function to find the closest visible player on an opposing team
+local function findClosestPlayer()
+    local closestPlayer = nil
+    local shortestDistance = math.huge -- Start with a very large number
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= localPlayer and player.TeamColor ~= localPlayer.TeamColor and player.Character and player.Character:FindFirstChild("Head") then
+            local character = player.Character
+            local humanoidRootPart = character.HumanoidRootPart
+            local distance = (localPlayer.Character.HumanoidRootPart.Position - humanoidRootPart.Position).magnitude
+            local ray = Ray.new(camera.CFrame.Position, (humanoidRootPart.Position - camera.CFrame.Position).unit * distance)
+            local part, position = workspace:FindPartOnRayWithIgnoreList(ray, {camera, localPlayer.Character})
+
+            -- Wall check: Ensure there are no obstacles between the camera and the player's head
+            if part and part:IsDescendantOf(player.Character) then
+                closestPlayer = player
+                shortestDistance = distance
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+-- Function to check if the target player is alive
+local function isPlayerAlive(player)
+    return player and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0
+end
+
+-- Function to lock the camera onto the target player's head
+local function lockCamera(targetPlayer)
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
+        local targetHead = targetPlayer.Character.Head
+        camera.CFrame = CFrame.new(camera.CFrame.Position, targetHead.Position)
+    end
+end
+
+-- Function to handle input for toggling aimbot
+local function onInputBegan(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == hotkey then
+        lockView = not lockView
+        if lockView then
+            targetPlayer = findClosestPlayer()
+            textLabel.Text = "Destructive Aimbot: ON"
+        else
+            targetPlayer = nil
+            textLabel.Text = "Destructive Aimbot: OFF"
+        end
+    end
+end
+
+-- Function to handle hotkey change input
+hotkeyBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local newHotkey = hotkeyBox.Text:upper()
+        hotkeyBox.Text = ""
+        if Enum.KeyCode[newHotkey] then
+            hotkey = Enum.KeyCode[newHotkey]
+            hotkeyLabel.Text = "Hotkey: " .. newHotkey
+        else
+            hotkeyLabel.Text = "Invalid Key. Try again."
+        end
+    end
+end)
+
+-- Connect input event for toggling aimbot
+UserInputService.InputBegan:Connect(onInputBegan)
+
+-- Update the camera every frame if lockView is true
+RunService.RenderStepped:Connect(function()
+    if lockView then
+        if targetPlayer and isPlayerAlive(targetPlayer) then
+            lockCamera(targetPlayer)
+        else
+            targetPlayer = findClosestPlayer()
+        end
+    end
+end)
